@@ -123,3 +123,16 @@ export function aggregateWeekly(dailyMetrics) {
     total:     +(acc.total     + (day.total     || 0)).toFixed(4),
   }), { regular: 0, overtime: 0, nd: 0, late: 0, undertime: 0, total: 0 })
 }
+
+
+/**
+ * Convert "HH:MM" 24-hour string → "h:MM AM/PM"
+ * e.g. "09:00" → "9:00 AM", "18:00" → "6:00 PM", "00:30" → "12:30 AM"
+ */
+export function to12Hour(timeStr) {
+  if (!timeStr) return ''
+  const [h, m] = timeStr.split(':').map(Number)
+  const period = h < 12 ? 'AM' : 'PM'
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  return `${hour12}:${String(m).padStart(2, '0')} ${period}`
+}

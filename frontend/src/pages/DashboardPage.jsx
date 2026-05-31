@@ -5,7 +5,7 @@ import { fetchDailySummaries } from '../hooks/useAttendance'
 import PunchClock     from '../components/dashboard/PunchClock'
 import MetricCard     from '../components/dashboard/MetricCard'
 import WeeklyChart    from '../components/dashboard/WeeklyChart'
-import { formatHours } from '../utils/timeCompute'
+import { formatHours, to12Hour  } from '../utils/timeCompute'
 import {
   Clock, TrendingUp, Moon, AlertTriangle,
   ArrowDown, CheckCircle2, Calendar
@@ -72,7 +72,7 @@ export default function DashboardPage() {
           Good {getGreeting()}, {profile?.name?.split(' ')[0]} !
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          {format(new Date(), 'EEEE, MMMM d')} · Schedule: {profile?.schedule?.start} – {profile?.schedule?.end}
+          {format(new Date(), 'EEEE, MMMM d')} · Schedule: {to12Hour(profile?.schedule?.start)} – {to12Hour(profile?.schedule?.end)}
         </p>
       </div>
 

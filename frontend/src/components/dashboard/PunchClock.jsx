@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAttendance } from '../../hooks/useAttendance'
 import { useAuth } from '../../context/AuthContext'
 import { format } from 'date-fns'
+import { to12Hour } from '../../utils/timeCompute'
 import { Clock, LogIn, LogOut, Loader2, CheckCircle } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -50,7 +51,7 @@ export default function PunchClock() {
     <div className="glass-card p-8 flex flex-col items-center text-center">
       {/* Live clock */}
       <p className="font-mono text-5xl font-medium text-white tracking-tight tabular-nums mb-1">
-        {format(now, 'HH:mm:ss')}
+        {format(now, 'hh:mm a')}
       </p>
       <p className="text-sm text-slate-400 mb-6">{format(now, 'EEEE, MMMM d, yyyy')}</p>
 
@@ -129,7 +130,7 @@ export default function PunchClock() {
       {/* Schedule reminder */}
       {profile?.schedule && (
         <p className="mt-4 text-xs text-slate-600">
-          Schedule: {profile.schedule.start} – {profile.schedule.end}
+          Schedule: {to12Hour(profile.schedule.start)} – {to12Hour(profile.schedule.end)}
         </p>
       )}
     </div>

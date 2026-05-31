@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # HCM — Time Tracking System
 
 A lightweight Human Capital Management system for tracking employee attendance, computing worked hours, overtime, night differential, lateness, and undertime — built with React, Node.js/Express, and Firebase.
@@ -265,3 +266,6 @@ firebase deploy --only hosting
 ## License
 
 MIT
+=======
+# mini-hcm-time-tracker
+>>>>>>> 0c6a1f36ff0f125b49ff92f5b1107594a6d5792f
