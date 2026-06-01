@@ -1,27 +1,33 @@
 // src/pages/AdminPage.jsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   collection, query, orderBy, getDocs, where,
-  doc, updateDoc, Timestamp, getDoc
+  Timestamp,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import { formatHours, computeAttendanceMetrics } from '../utils/timeCompute'
+import { apiFetch, ApiError } from '../lib/api'
+import { formatHours } from '../utils/timeCompute'
+import { buildPunchTimes, validatePunchEdit } from '../utils/timezone'
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns'
 import {
-  ShieldCheck, Users, ChevronDown, ChevronUp,
-  Edit3, Check, X, RefreshCw, Calendar
+  ShieldCheck, ChevronDown, ChevronUp,
+  Edit3, Check, X, RefreshCw, AlertCircle
 } from 'lucide-react'
 import clsx from 'clsx'
+import ScheduleTimePicker from '../components/shared/ScheduleTimePicker'
 
 export default function AdminPage() {
-  const [employees, setEmployees]   = useState([])
-  const [attendance, setAttendance] = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [weekOffset, setWeekOffset] = useState(0)
-  const [editRow, setEditRow]       = useState(null)
-  const [editTimes, setEditTimes]   = useState({ punchIn: '', punchOut: '' })
-  const [activeTab, setActiveTab]   = useState('daily')
+  const [employees, setEmployees]     = useState([])
+  const [attendance, setAttendance]   = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [weekOffset, setWeekOffset]   = useState(0)
+  const [editRow, setEditRow]         = useState(null)
+  const [editTimes, setEditTimes]     = useState({ punchIn: '', punchOut: '' })
+  const [editError, setEditError]     = useState('')
+  const [saveLoading, setSaveLoading] = useState(false)
+  const [activeTab, setActiveTab]     = useState('daily')
 
+  
   const weekStart = startOfWeek(subWeeks(new Date(), weekOffset), { weekStartsOn: 1 })
   const weekEnd   = endOfWeek(subWeeks(new Date(), weekOffset), { weekStartsOn: 1 })
 
@@ -30,12 +36,10 @@ export default function AdminPage() {
   async function loadData() {
     setLoading(true)
     try {
-      // Load all employees
       const usersSnap = await getDocs(collection(db, 'users'))
       const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
       setEmployees(users)
 
-      // Load attendance for the selected week
       const q = query(
         collection(db, 'attendance'),
         where('date', '>=', Timestamp.fromDate(weekStart)),
@@ -49,38 +53,81 @@ export default function AdminPage() {
     }
   }
 
-  async function saveEdit(record) {
-    const pin  = new Date(`${format(record.punchIn.toDate(), 'yyyy-MM-dd')}T${editTimes.punchIn}`)
-    const pout = new Date(`${format(record.punchIn.toDate(), 'yyyy-MM-dd')}T${editTimes.punchOut}`)
-
-    // Get user schedule
-    const userDoc = await getDoc(doc(db, 'users', record.uid))
-    const schedule = userDoc.data()?.schedule || { start: '09:00', end: '18:00' }
-    const metrics  = computeAttendanceMetrics(pin, pout, schedule.start, schedule.end)
-
-    await updateDoc(doc(db, 'attendance', record.id), {
-      punchIn:  Timestamp.fromDate(pin),
-      punchOut: Timestamp.fromDate(pout),
-      metrics,
+  function applyEditTimes(record, patch) {
+    setEditTimes(prev => {
+      const next = { ...prev, ...patch }
+      setEditError(validatePunchEdit(record, next.punchIn, next.punchOut))
+      return next
     })
-    setEditRow(null)
-    await loadData()
   }
 
-  // Group attendance by employee for weekly report
-  const weeklyByEmployee = employees.map(emp => {
-    const recs = attendance.filter(r => r.uid === emp.uid || r.uid === emp.id)
-    const totals = recs.reduce((acc, r) => ({
-      regular:   acc.regular   + (r.metrics?.regular   || 0),
-      overtime:  acc.overtime  + (r.metrics?.overtime  || 0),
-      nd:        acc.nd        + (r.metrics?.nd        || 0),
-      late:      acc.late      + (r.metrics?.late      || 0),
-      undertime: acc.undertime + (r.metrics?.undertime || 0),
-      total:     acc.total     + (r.metrics?.total     || 0),
-      days:      acc.days + (r.punchOut ? 1 : 0),
-    }), { regular: 0, overtime: 0, nd: 0, late: 0, undertime: 0, total: 0, days: 0 })
-    return { ...emp, ...totals, records: recs }
-  }).filter(e => e.role !== 'admin')
+  async function saveEdit(record) {
+    const err = validatePunchEdit(record, editTimes.punchIn, editTimes.punchOut)
+    if (err) {
+      setEditError(err)
+      return
+    }
+
+    const built = buildPunchTimes(record, editTimes.punchIn, editTimes.punchOut)
+    if (built.error) {
+      setEditError(built.error)
+      return
+    }
+
+    setSaveLoading(true)
+    try {
+      await apiFetch(`/api/reports/attendance/${record.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          punchInHhmm: editTimes.punchIn,
+          punchOutHhmm: editTimes.punchOut,
+        }),
+      })
+
+      setEditRow(null)
+      setEditError('')
+      await loadData()
+    } catch (err) {
+      setEditError(
+        err instanceof ApiError ? err.message : 'Failed to save. Please try again.'
+      )
+    } finally {
+      setSaveLoading(false)
+    }
+  }
+
+  function startEdit(r) {
+    const times = {
+      punchIn: r.punchIn ? format(r.punchIn.toDate(), 'HH:mm') : '',
+      punchOut: r.punchOut ? format(r.punchOut.toDate(), 'HH:mm') : '',
+    }
+    setEditRow(r.id)
+    setEditTimes(times)
+    setEditError(validatePunchEdit(r, times.punchIn, times.punchOut))
+  }
+
+  function cancelEdit() {
+    setEditRow(null)
+    setEditError('')
+  }
+
+  // Fixed: use emp.uid || emp.id and filter admin correctly
+  const weeklyByEmployee = employees
+    .filter(e => e.role !== 'admin')
+    .map(emp => {
+      const uid  = emp.uid || emp.id
+      const recs = attendance.filter(r => r.uid === uid)
+      const totals = recs.reduce((acc, r) => ({
+        regular:   acc.regular   + (r.metrics?.regular   || 0),
+        overtime:  acc.overtime  + (r.metrics?.overtime  || 0),
+        nd:        acc.nd        + (r.metrics?.nd        || 0),
+        late:      acc.late      + (r.metrics?.late      || 0),
+        undertime: acc.undertime + (r.metrics?.undertime || 0),
+        total:     acc.total     + (r.metrics?.total     || 0),
+        days:      acc.days      + (r.punchOut ? 1 : 0),
+      }), { regular: 0, overtime: 0, nd: 0, late: 0, undertime: 0, total: 0, days: 0 })
+      return { ...emp, ...totals }
+    })
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -133,7 +180,7 @@ export default function AdminPage() {
 
       {/* Daily Records Tab */}
       {activeTab === 'daily' && (
-        <div className="glass-card overflow-hidden animate-fade-in">
+        <div className="glass-card overflow-x-auto animate-fade-in">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-white/[0.07] bg-white/[0.02]">
@@ -151,70 +198,89 @@ export default function AdminPage() {
                 const isEdit = editRow === r.id
                 const m = r.metrics
                 return (
-                  <tr key={r.id} className={clsx('hover:bg-white/[0.02]', isEdit && 'bg-brand-500/5')}>
-                    <td className="px-4 py-3 font-medium text-slate-200">{r.userName || '—'}</td>
-                    <td className="px-4 py-3 text-slate-400 font-mono">
-                      {r.punchIn ? format(r.punchIn.toDate(), 'MMM d') : '—'}
-                    </td>
-                    {isEdit ? (
-                      <>
-                        <td className="px-4 py-3">
-                          <input type="time" value={editTimes.punchIn}
-                            onChange={e => setEditTimes(t => ({...t, punchIn: e.target.value}))}
-                            className="input-field py-1 text-xs w-28"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input type="time" value={editTimes.punchOut}
-                            onChange={e => setEditTimes(t => ({...t, punchOut: e.target.value}))}
-                            className="input-field py-1 text-xs w-28"
-                          />
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-3 font-mono text-slate-300">
-                          {r.punchIn ? format(r.punchIn.toDate(), 'hh:mm a') : '—'}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-300">
-                          {r.punchOut ? format(r.punchOut.toDate(), 'hh:mm a') : (
-                            <span className="text-emerald-400 font-semibold">Active</span>
-                          )}
-                        </td>
-                      </>
-                    )}
-                    <td className="px-4 py-3 font-mono text-brand-400">{m ? formatHours(m.regular)   : '—'}</td>
-                    <td className="px-4 py-3 font-mono text-amber-400">{m ? formatHours(m.overtime)  : '—'}</td>
-                    <td className="px-4 py-3 font-mono text-sky-400">  {m ? formatHours(m.nd)        : '—'}</td>
-                    <td className="px-4 py-3 font-mono text-rose-400"> {m ? formatHours(m.late)      : '—'}</td>
-                    <td className="px-4 py-3 font-mono text-orange-400">{m ? formatHours(m.undertime) : '—'}</td>
-                    <td className="px-4 py-3 font-mono font-bold text-white">{m ? formatHours(m.total) : '—'}</td>
-                    <td className="px-4 py-3">
+                  <Fragment key={r.id}>
+                    <tr className={clsx('hover:bg-white/[0.02]', isEdit && 'bg-brand-500/5')}>
+                      <td className="px-4 py-3 font-medium text-slate-200">{r.userName || '—'}</td>
+                      <td className="px-4 py-3 text-slate-400 font-mono">
+                        {r.punchIn ? format(r.punchIn.toDate(), 'MMM d') : '—'}
+                      </td>
+
                       {isEdit ? (
-                        <div className="flex gap-1">
-                          <button onClick={() => saveEdit(r)} className="btn-primary text-[10px] py-1 px-2">
-                            <Check size={11} />
-                          </button>
-                          <button onClick={() => setEditRow(null)} className="btn-secondary text-[10px] py-1 px-2">
-                            <X size={11} />
-                          </button>
-                        </div>
+                        <>
+                          <td className="px-4 py-3">
+                            <ScheduleTimePicker
+                              value={editTimes.punchIn}
+                              onChange={v => applyEditTimes(r, { punchIn: v })}
+                              buttonClassName="py-1.5 text-xs min-w-[8.5rem]"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <ScheduleTimePicker
+                              value={editTimes.punchOut}
+                              onChange={v => applyEditTimes(r, { punchOut: v })}
+                              buttonClassName="py-1.5 text-xs min-w-[8.5rem]"
+                            />
+                          </td>
+                        </>
                       ) : (
-                        <button
-                          onClick={() => {
-                            setEditRow(r.id)
-                            setEditTimes({
-                              punchIn:  r.punchIn  ? format(r.punchIn.toDate(),  'HH:mm') : '',
-                              punchOut: r.punchOut ? format(r.punchOut.toDate(), 'HH:mm') : '',
-                            })
-                          }}
-                          className="btn-secondary text-[10px] py-1 px-2"
-                        >
-                          <Edit3 size={11} />
-                        </button>
+                        <>
+                          <td className="px-4 py-3 font-mono text-slate-300">
+                            {r.punchIn ? format(r.punchIn.toDate(), 'hh:mm a') : '—'}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-300">
+                            {r.punchOut ? format(r.punchOut.toDate(), 'hh:mm a') : (
+                              <span className="text-emerald-400 font-semibold">Active</span>
+                            )}
+                          </td>
+                        </>
                       )}
-                    </td>
-                  </tr>
+
+                      <td className="px-4 py-3 font-mono text-brand-400">{!isEdit && m ? formatHours(m.regular)   : '—'}</td>
+                      <td className="px-4 py-3 font-mono text-amber-400">{!isEdit && m ? formatHours(m.overtime)  : '—'}</td>
+                      <td className="px-4 py-3 font-mono text-sky-400">  {!isEdit && m ? formatHours(m.nd)        : '—'}</td>
+                      <td className="px-4 py-3 font-mono text-rose-400"> {!isEdit && m ? formatHours(m.late)      : '—'}</td>
+                      <td className="px-4 py-3 font-mono text-orange-400">{!isEdit && m ? formatHours(m.undertime) : '—'}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-white">{!isEdit && m ? formatHours(m.total) : '—'}</td>
+                      <td className="px-4 py-3">
+                        {isEdit ? (
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => saveEdit(r)}
+                              disabled={saveLoading || !!editError}
+                              className="btn-primary text-[10px] py-1 px-2"
+                            >
+                              <Check size={11} />
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="btn-secondary text-[10px] py-1 px-2"
+                            >
+                              <X size={11} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => startEdit(r)}
+                            className="btn-secondary text-[10px] py-1 px-2"
+                          >
+                            <Edit3 size={11} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+
+                    {/* Validation error row — shows below the row being edited */}
+                    {isEdit && editError && (
+                      <tr key={`${r.id}-error`} className="bg-rose-500/5">
+                        <td colSpan={11} className="px-4 py-2">
+                          <div className="flex items-center gap-2 text-xs text-rose-400">
+                            <AlertCircle size={12} />
+                            {editError}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 )
               })}
             </tbody>

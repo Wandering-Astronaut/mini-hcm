@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
   LayoutDashboard, Clock, History, ShieldCheck,
-  LogOut, UserCircle, ChevronRight
+  LogOut, UserCircle
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -28,12 +28,12 @@ export default function AppShell() {
         {/* Logo */}
         <div className="px-6 py-6 border-b border-white/[0.06]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-              <Clock size={16} className="text-white" />
+            <div className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center">
+              <Clock size={25} className="text-white" />
             </div>
             <div>
-              <p className="text-sm font-bold text-white tracking-tight">HCM</p>
-              <p className="text-[10px] text-slate-500 tracking-widest uppercase">Human Capital Management</p>
+              <p className="text-base font-bold text-white tracking-tight">HCM</p>
+              <p className="text-[10px] text-slate-500 tracking-widest uppercase">Time Tracker</p>
             </div>
           </div>
         </div>
@@ -70,12 +70,12 @@ export default function AppShell() {
         <div className="px-3 py-4 border-t border-white/[0.06]">
           <div className="glass-card px-3 py-3">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-full bg-brand-600/30 border border-brand-500/30 flex items-center justify-center">
-                <UserCircle size={16} className="text-brand-400" />
+              <div className="w-10 h-10 rounded-full bg-brand-600/30 border border-brand-500/30 flex items-center justify-center">
+                <UserCircle size={20} className="text-brand-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">{profile?.name || 'User'}</p>
-                <p className="text-[10px] text-slate-500 capitalize">{profile?.role || 'employee'}</p>
+                <p className="text-[11px] text-slate-500 capitalize">{profile?.role || 'employee'}</p>
               </div>
             </div>
             <button onClick={handleLogout} className="btn-secondary w-full text-xs py-2">

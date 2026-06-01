@@ -3,6 +3,7 @@ dist/
 .env
 .env.local
 frontend/.env.local
+frontend/.env.production
 backend/.env
 backend/service-account.json
 *.log

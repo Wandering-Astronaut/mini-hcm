@@ -1,25 +1,41 @@
 // src/hooks/useAttendance.js
 import { useState, useEffect, useCallback } from 'react'
 import {
-  collection, addDoc, query, where, orderBy,
-  onSnapshot, doc, updateDoc, serverTimestamp, getDoc, getDocs, Timestamp
+  collection, query, where, orderBy,
+  onSnapshot, getDocs, Timestamp,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
-import { computeAttendanceMetrics } from '../utils/timeCompute'
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek } from 'date-fns'
+import { apiFetch, ApiError } from '../lib/api'
+import { getDateLabel, DEFAULT_TIMEZONE } from '../utils/timezone'
+import { startOfDay, endOfDay } from 'date-fns'
+
+function punchMillis(record) {
+  if (!record.punchIn) return 0
+  if (typeof record.punchIn.toMillis === 'function') return record.punchIn.toMillis()
+  return record.punchIn.toDate?.().getTime() ?? 0
+}
+
+function pickTodayRecord(docs) {
+  if (!docs.length) return null
+  const open = docs.find(d => !d.punchOut)
+  if (open) return open
+  return docs.sort((a, b) => punchMillis(b) - punchMillis(a))[0]
+}
 
 export function useAttendance() {
   const { user, profile } = useAuth()
   const [todayRecord, setTodayRecord] = useState(null)
   const [loading, setLoading]         = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [actionError, setActionError] = useState('')
 
-  // Subscribe to today's attendance record
+  const timezone = profile?.timezone || DEFAULT_TIMEZONE
+
   useEffect(() => {
     if (!user) return
 
-    const today = format(new Date(), 'yyyy-MM-dd')
+    const today = getDateLabel(new Date(), timezone)
 
     const q = query(
       collection(db, 'attendance'),
@@ -28,96 +44,51 @@ export function useAttendance() {
     )
 
     const unsub = onSnapshot(q, (snap) => {
-      if (!snap.empty) {
-        const d = snap.docs[0]
-        setTodayRecord({ id: d.id, ...d.data() })
-      } else {
-        setTodayRecord(null)
-      }
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      setTodayRecord(pickTodayRecord(docs))
       setLoading(false)
     })
 
     return unsub
-  }, [user])
+  }, [user, timezone])
 
   const punchIn = useCallback(async () => {
     if (!user || !profile) return
+    if (todayRecord && !todayRecord.punchOut) return
+
     setActionLoading(true)
+    setActionError('')
     try {
-      const now = new Date()
-      await addDoc(collection(db, 'attendance'), {
-        uid:       user.uid,
-        userName:  profile.name,
-        email:     profile.email,
-        date:      Timestamp.fromDate(now),
-        punchIn:   Timestamp.fromDate(now),
-        punchOut:  null,
-        dateLabel: format(now, 'yyyy-MM-dd'),
-        metrics:   null,
-        schedule:  profile.schedule,
-        status:    'in',
-      })
-    } finally {
-      setActionLoading(false)
-    }
-  }, [user, profile])
-
-  const punchOut = useCallback(async () => {
-    if (!user || !profile || !todayRecord) return
-    setActionLoading(true)
-    try {
-      const now     = new Date()
-      const punchIn = todayRecord.punchIn.toDate()
-      const metrics = computeAttendanceMetrics(
-        punchIn,
-        now,
-        profile.schedule.start,
-        profile.schedule.end
-      )
-
-      const ref = doc(db, 'attendance', todayRecord.id)
-      await updateDoc(ref, {
-        punchOut: Timestamp.fromDate(now),
-        metrics,
-        status: 'out',
-      })
-
-      // Upsert daily summary
-      await upsertDailySummary(user.uid, profile, format(now, 'yyyy-MM-dd'), metrics, now)
+      await apiFetch('/api/attendance/punch-in', { method: 'POST' })
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'Punch in failed.')
+      throw err
     } finally {
       setActionLoading(false)
     }
   }, [user, profile, todayRecord])
 
-  return { todayRecord, loading, actionLoading, punchIn, punchOut }
+  const punchOut = useCallback(async () => {
+    if (!user || !profile || !todayRecord) return
+
+    setActionLoading(true)
+    setActionError('')
+    try {
+      await apiFetch('/api/attendance/punch-out', {
+        method: 'POST',
+        body: JSON.stringify({ recordId: todayRecord.id }),
+      })
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'Punch out failed.')
+      throw err
+    } finally {
+      setActionLoading(false)
+    }
+  }, [user, profile, todayRecord])
+
+  return { todayRecord, loading, actionLoading, actionError, punchIn, punchOut }
 }
 
-async function upsertDailySummary(uid, profile, dateLabel, metrics, date) {
-  const summaryId = `${uid}_${dateLabel}`
-  const ref       = doc(db, 'dailySummary', summaryId)
-  const snap      = await getDoc(ref)
-
-  const payload = {
-    uid,
-    userName:  profile.name,
-    email:     profile.email,
-    dateLabel,
-    date:      Timestamp.fromDate(startOfDay(date)),
-    ...metrics,
-    updatedAt: serverTimestamp(),
-  }
-
-  if (snap.exists()) {
-    await updateDoc(ref, payload)
-  } else {
-    const { setDoc } = await import('firebase/firestore')
-    await setDoc(ref, { ...payload, createdAt: serverTimestamp() })
-  }
-}
-
-/**
- * Fetch attendance history for a user within a date range
- */
 export async function fetchAttendanceRange(uid, from, to) {
   const q = query(
     collection(db, 'attendance'),
@@ -130,9 +101,6 @@ export async function fetchAttendanceRange(uid, from, to) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
-/**
- * Fetch daily summaries for a user in a date range
- */
 export async function fetchDailySummaries(uid, from, to) {
   const q = query(
     collection(db, 'dailySummary'),

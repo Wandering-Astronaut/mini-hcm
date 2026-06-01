@@ -6,49 +6,89 @@ import PunchClock     from '../components/dashboard/PunchClock'
 import MetricCard     from '../components/dashboard/MetricCard'
 import WeeklyChart    from '../components/dashboard/WeeklyChart'
 import { formatHours, to12Hour  } from '../utils/timeCompute'
+import { useAttendance } from '../hooks/useAttendance'
 import {
   Clock, TrendingUp, Moon, AlertTriangle,
   ArrowDown, CheckCircle2, Calendar
 } from 'lucide-react'
-import { startOfWeek, endOfWeek, eachDayOfInterval, format, isToday } from 'date-fns'
+import { startOfWeek, endOfWeek, eachDayOfInterval, format } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
+import { getDateLabel, DEFAULT_TIMEZONE } from '../utils/timezone'
 
 export default function DashboardPage() {
   const { profile, user } = useAuth()
+  const { todayRecord } = useAttendance()
   const [weekData, setWeekData]   = useState([])
   const [loading, setLoading]     = useState(true)
   const [todayMetrics, setTodayMetrics] = useState(null)
 
   useEffect(() => {
     if (!user) return
+
+    if (todayRecord?.status === 'out') {
+      if (todayRecord.metrics) setTodayMetrics(todayRecord.metrics)
+      // dailySummary is written after punch-out; wait before fetching week data
+      const timer = setTimeout(() => loadWeekData(), 1500)
+      return () => clearTimeout(timer)
+    }
+
     loadWeekData()
-  }, [user])
+  }, [user, profile?.timezone, todayRecord?.status, todayRecord?.metrics, todayRecord?.dateLabel])
 
   async function loadWeekData() {
-    const now  = new Date()
-    const from = startOfWeek(now, { weekStartsOn: 1 }) // Mon
-    const to   = endOfWeek(now, { weekStartsOn: 1 })
+    const tz = profile?.timezone || DEFAULT_TIMEZONE
+    const now = new Date()
+    const from = startOfWeek(now, { weekStartsOn: 1 })
+    const to = endOfWeek(now, { weekStartsOn: 1 })
+    const todayKey = getDateLabel(now, tz)
 
     try {
       const summaries = await fetchDailySummaries(user.uid, from, to)
       const days = eachDayOfInterval({ start: from, end: to }).map(day => {
-        const label   = format(day, 'EEE')
-        const dateKey = format(day, 'yyyy-MM-dd')
-        const found   = summaries.find(s => s.dateLabel === dateKey)
+        const dateKey = getDateLabel(day, tz)
+        const found = summaries.find(s => s.dateLabel === dateKey)
+        const num = key => Number(found?.[key]) || 0
         return {
-          day:      label,
+          day: formatInTimeZone(day, tz, 'EEE'),
           dateKey,
-          isToday:  isToday(day),
-          regular:  found?.regular   || 0,
-          overtime: found?.overtime  || 0,
-          nd:       found?.nd        || 0,
-          late:     found?.late      || 0,
-          undertime:found?.undertime || 0,
-          total:    found?.total     || 0,
+          isToday: dateKey === todayKey,
+          regular: num('regular'),
+          overtime: num('overtime'),
+          nd: num('nd'),
+          late: num('late'),
+          undertime: num('undertime'),
+          total: num('total'),
         }
       })
+
+      // Align live attendance with the row for its dateLabel (profile timezone)
+      if (todayRecord?.dateLabel && todayRecord.metrics) {
+        const m = todayRecord.metrics
+        const row = days.find(d => d.dateKey === todayRecord.dateLabel)
+        if (row) {
+          row.regular = Number(m.regular) || 0
+          row.overtime = Number(m.overtime) || 0
+          row.nd = Number(m.nd) || 0
+          row.late = Number(m.late) || 0
+          row.undertime = Number(m.undertime) || 0
+          row.total = Number(m.total) || 0
+        }
+      }
+
       setWeekData(days)
       const today = days.find(d => d.isToday)
-      if (today?.total > 0) setTodayMetrics(today)
+      if (today?.total > 0) {
+        setTodayMetrics(today)
+      } else if (todayRecord?.status === 'out' && todayRecord.metrics) {
+        setTodayMetrics({
+          regular: Number(todayRecord.metrics.regular) || 0,
+          overtime: Number(todayRecord.metrics.overtime) || 0,
+          nd: Number(todayRecord.metrics.nd) || 0,
+          late: Number(todayRecord.metrics.late) || 0,
+          undertime: Number(todayRecord.metrics.undertime) || 0,
+          total: Number(todayRecord.metrics.total) || 0,
+        })
+      }
     } finally {
       setLoading(false)
     }
@@ -72,7 +112,8 @@ export default function DashboardPage() {
           Good {getGreeting()}, {profile?.name?.split(' ')[0]} !
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          {format(new Date(), 'EEEE, MMMM d')} · Schedule: {to12Hour(profile?.schedule?.start)} – {to12Hour(profile?.schedule?.end)}
+          {formatInTimeZone(new Date(), profile?.timezone || DEFAULT_TIMEZONE, 'EEEE, MMMM d')} · Schedule:{' '}
+          {to12Hour(profile?.schedule?.start)} – {to12Hour(profile?.schedule?.end)}
         </p>
       </div>
 

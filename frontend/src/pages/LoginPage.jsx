@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Clock, Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react'
+import { Clock, Mail, Lock, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react'
+
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -10,6 +11,8 @@ export default function LoginPage() {
   const [form, setForm]     = useState({ email: '', password: '' })
   const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+
 
   function onChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -33,18 +36,17 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md animate-fade-up">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-900/50">
-            <Clock size={20} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">HCM</h1>
-            <p className="text-xs text-slate-500">Human Capital Management</p>
-          </div>
-        </div>
+
+        
+      <div className="flex items-center justify-center gap-3 mb-6">
+      <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-900/50">
+        <Clock size={25} className="text-white" />
+      </div>
+      <h1 className="text-2xl font-bold text-white tracking-tight">HCM</h1>
+      </div>
 
         <div className="glass-card p-8">
+
           <h2 className="text-3xl font-bold text-white mb-1 text-center">Welcome back</h2>
           <p className="text-sm text-slate-400 mb-8 text-center">Sign in to your account to continue</p>
 
@@ -64,13 +66,10 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  placeholder="name@gmail.com"
+                  placeholder="you@company.com"
                   value={form.email}
                   onChange={(e) => {
-                    setForm(f => ({
-                      ...f,
-                      email: e.target.value.toLowerCase()
-                    }))
+                    setForm(f => ({ ...f, email: e.target.value.toLowerCase() }))
                     setError('')
                   }}
                   className="input-field pl-10"
@@ -79,20 +78,27 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="label">Password</label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input
-                  name="password"
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={onChange}
-                  className="input-field pl-10"
-                />
-              </div>
+            <label className="label">Password</label>
+            <div className="relative">
+              <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                placeholder="••••••••"
+                value={form.password}
+                onChange={onChange}
+                className="input-field pl-10 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(p => !p)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
             </div>
+          </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3">
               {loading ? 'Signing in…' : 'Sign in'}

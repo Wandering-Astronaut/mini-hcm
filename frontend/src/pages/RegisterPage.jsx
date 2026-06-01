@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Clock, Mail, Lock, User, AlertCircle, ArrowRight, Globe } from 'lucide-react'
+import { Clock, Mail, Lock, User, AlertCircle, ArrowRight, Globe, Eye, EyeOff } from 'lucide-react'
+
 import ScheduleTimePicker from '../components/shared/ScheduleTimePicker'
 const TIMEZONES = Intl.supportedValuesOf('timeZone')
 
@@ -27,6 +28,10 @@ export default function RegisterPage() {
   const name = form.name.trim()
 
   const fullNameRegex = /^[A-Za-zÀ-ÿ' -]+$/
+
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
 
   function onChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -157,15 +162,13 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-lg animate-fade-up">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-900/50">
-            <Clock size={20} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">HCM</h1>
-            <p className="text-xs text-slate-500">Human Capital Management</p>
-          </div>
-        </div>
+
+      <div className="flex items-center justify-center gap-3 mb-6">
+      <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-900/50">
+        <Clock size={25} className="text-white" />
+      </div>
+      <h1 className="text-2xl font-bold text-white tracking-tight">HCM</h1>
+      </div>
 
         <div className="glass-card p-8">
           <h2 className="text-3xl font-bold text-white mb-1 text-center">Create account</h2>
@@ -221,7 +224,7 @@ export default function RegisterPage() {
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   name="email" type="email" required
-                  placeholder="name@gmail.com"
+                  placeholder="you@company.com"
                   value={form.email} 
                   onChange={(e) => {
                     setForm(f => ({
@@ -236,61 +239,69 @@ export default function RegisterPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Password</label>
-                <div className="relative">
-                  <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    name="password" type="password" required
-                    placeholder="••••••••"
-                    value={form.password} 
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\s/g, '') // remove all spaces
-                    
-                      setForm(f => ({ ...f, password: value }))
-                      setError('')
-                    }}
-                    className="input-field pl-10"
+            <div>
+              <label className="label">Password</label>
+              <div className="relative">
+                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  name="password" type={showPassword ? 'text' : 'password'} required
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\s/g, '')
+                    setForm(f => ({ ...f, password: value }))
+                    setError('')
+                  }}
+                  className="input-field pl-10 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(p => !p)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              <div className="mt-2">
+                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${strengthColor()}`}
+                    style={{ width: `${(strength / 5) * 100}%` }}
                   />
                 </div>
-                <div className="mt-2">
-                  <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${strengthColor()}`}
-                      style={{ width: `${(strength / 5) * 100}%` }}
-                    />
-                  </div>
-
-                  <p className="text-xs mt-1 text-slate-400">
-                    Strength: {strengthLabel()}
-                  </p>
-
+                <p className="text-xs mt-1 text-slate-400">Strength: {strengthLabel()}</p>
               </div>
+            </div>
+            <div>
+              <label className="label">Confirm Password</label>
+              <div className="relative">
+                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  name="confirmPassword" type={showConfirm ? 'text' : 'password'} required
+                  placeholder="••••••••"
+                  value={form.confirmPassword}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\s/g, '')
+                    setForm(f => ({ ...f, confirmPassword: value }))
+                    setError('')
+                  }}
+                  className="input-field pl-10 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(p => !p)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
-              <div>
-                <label className="label">Confirm Password</label>
-                <div className="relative">
-                  <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    name="confirmPassword" type="password" required
-                    placeholder="••••••••"
-                    value={form.confirmPassword} 
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\s/g, '') // remove all spaces
-                    
-                      setForm(f => ({ ...f, confirmPassword: value }))
-                      setError('')
-                    }}
-                    className="input-field pl-10"
-                  />
-                </div>
-              </div>
+            </div>
             </div>
 
             <div>
               <label className="label">Timezone</label>
               <div ref={wrapperRef} className="relative">
-                <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                
                 <div className="relative">
                   <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
 

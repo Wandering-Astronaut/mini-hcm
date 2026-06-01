@@ -16,6 +16,14 @@
       ]
     },
     {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid",        "order": "ASCENDING" },
+        { "fieldPath": "dateLabel",  "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "dailySummary",
       "queryScope": "COLLECTION",
       "fields": [

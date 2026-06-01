@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { fetchAttendanceRange } from '../hooks/useAttendance'
 import { formatHours } from '../utils/timeCompute'
 import { format, subDays, startOfWeek, endOfWeek } from 'date-fns'
-import { History, ChevronLeft, ChevronRight, Clock, Filter } from 'lucide-react'
+import { History, Clock } from 'lucide-react'
 
 const RANGES = [
   { label: 'This week', value: 'thisweek' },

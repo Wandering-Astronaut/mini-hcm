@@ -1,5 +1,6 @@
 // src/middleware/auth.js
-import { adminAuth } from '../firebase-admin.js'
+import { adminAuth, adminDb } from '../firebase-admin.js'
+
 
 export async function verifyToken(req, res, next) {
   const header = req.headers.authorization

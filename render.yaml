@@ -1,0 +1,17 @@
+# Render Blueprint — deploy backend API (free tier)
+# Dashboard: https://dashboard.render.com → New → Blueprint → connect this repo
+services:
+  - type: web
+    name: mini-hcm-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Set these in Render dashboard after create (see DEPLOY-LIVE.md):
+      # FIREBASE_SERVICE_ACCOUNT = entire service-account.json as one line
+      # FRONTEND_URL = https://mini-hcm-timetracking.web.app

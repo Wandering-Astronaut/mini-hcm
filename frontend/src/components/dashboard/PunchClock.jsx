@@ -3,13 +3,15 @@ import { useState, useEffect } from 'react'
 import { useAttendance } from '../../hooks/useAttendance'
 import { useAuth } from '../../context/AuthContext'
 import { format } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
 import { to12Hour } from '../../utils/timeCompute'
+import { DEFAULT_TIMEZONE } from '../../utils/timezone'
 import { Clock, LogIn, LogOut, Loader2, CheckCircle } from 'lucide-react'
 import clsx from 'clsx'
 
 export default function PunchClock() {
   const { profile } = useAuth()
-  const { todayRecord, loading, actionLoading, punchIn, punchOut } = useAttendance()
+  const { todayRecord, loading, actionLoading, actionError, punchIn, punchOut } = useAttendance()
   const [now, setNow] = useState(new Date())
   const [elapsed, setElapsed] = useState('00:00:00')
 
@@ -53,7 +55,9 @@ export default function PunchClock() {
       <p className="font-mono text-5xl font-medium text-white tracking-tight tabular-nums mb-1">
         {format(now, 'hh:mm a')}
       </p>
-      <p className="text-sm text-slate-400 mb-6">{format(now, 'EEEE, MMMM d, yyyy')}</p>
+      <p className="text-sm text-slate-400 mb-6">
+        {formatInTimeZone(now, profile?.timezone || DEFAULT_TIMEZONE, 'EEEE, MMMM d, yyyy')}
+      </p>
 
       {/* Status badge */}
       <div className={clsx(
@@ -125,6 +129,10 @@ export default function PunchClock() {
             </p>
           </div>
         </div>
+      )}
+
+      {actionError && (
+        <p className="mt-4 text-xs text-rose-400">{actionError}</p>
       )}
 
       {/* Schedule reminder */}
