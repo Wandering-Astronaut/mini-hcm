@@ -34,6 +34,9 @@ app.use(express.json())
 app.use('/api/attendance', attendanceRoutes)
 app.use('/api/reports',    reportsRoutes)
 
+app.get('/', (_req, res) =>
+  res.json({ name: 'Mini HCM API', health: '/api/health' })
+)
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 
 app.listen(PORT, () => console.log(`HCM API running on :${PORT}`))

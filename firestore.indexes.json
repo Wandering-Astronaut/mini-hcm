@@ -12,13 +12,6 @@
       "collectionGroup": "attendance",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "date", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "attendance",
-      "queryScope": "COLLECTION",
-      "fields": [
         { "fieldPath": "uid",        "order": "ASCENDING" },
         { "fieldPath": "dateLabel",  "order": "ASCENDING" }
       ]
