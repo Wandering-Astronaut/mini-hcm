@@ -165,14 +165,6 @@ Save and wait for redeploy.
 
 ---
 
-## What to submit to reviewers
-
-- **Live app:** `https://mini-hcm-timetracking.web.app`
-- **Repo:** GitHub link
-- **README:** note that API is on Render and first request may be slow on free tier
-
----
-
 ## Re-deploy after code changes
 
 ```powershell
